@@ -1,7 +1,7 @@
 name: Test & Upload report
 on:
   push:
-    branches: [main]
+    branches: [cli]
   workflow_dispatch:
     inputs:
       PROJECT_KEY:
