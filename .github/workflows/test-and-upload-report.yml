@@ -1,0 +1,254 @@
+name: Test & Upload Report
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      PROJECT_KEY:
+        description: The key of project
+        type: string
+        required: true # require project key
+      TEST_EXECUTION_KEY:
+        description: The key of test execution
+        type: string
+        required: false # optional test execution key
+  schedule:
+    - cron: "0 0 * * *"
+jobs:
+  behave-test-and-upload:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.12
+      - name: Run test & generate report
+        run: |
+          pip install -r behave/requirements.txt
+          behave behave/features -f json -o reports/behave-report.json
+      - name: Upload report to artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: behave-report
+          path: reports/
+      - name: Upload report to AgileTest.App
+        env:
+          AGILETEST_BASE_URL: ${{ secrets.AGILETEST_BASE_URL }}
+          AGILETEST_CLIENT_TOKEN: ${{ secrets.AGILETEST_CLIENT_TOKEN }}
+        
+
+        run: |
+          docker run --rm \
+          -e AGILETEST_BASE_URL=$AGILETEST_BASE_URL \
+          -e AGILETEST_CLIENT_TOKEN=$AGILETEST_CLIENT_TOKEN \
+          -v ${{ github.workspace }}/reports:/reports \
+          ghcr.io/agiletestapp/agiletest-cli:latest \
+          test-execution import --framework-type behave --project-key AUT \
+          --test-execution-key AUT-6062 \
+          /reports/behave-report.json
+
+  cucumber-test-and-upload:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Run test & generate report
+        run: |
+          yarn
+          yarn cucumber-test
+      - name: Upload report to artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cucumber-report
+          path: reports/
+      - name: Upload report to AgileTest.App
+        env:
+          AGILETEST_BASE_URL: ${{ secrets.AGILETEST_BASE_URL }}
+          AGILETEST_CLIENT_TOKEN: ${{ secrets.AGILETEST_CLIENT_TOKEN }}
+        run: |
+          docker run --rm \
+          -e AGILETEST_BASE_URL=$AGILETEST_BASE_URL \
+          -e AGILETEST_CLIENT_TOKEN=$AGILETEST_CLIENT_TOKEN \
+          -v ${{ github.workspace }}/reports:/reports \
+          ghcr.io/agiletestapp/agiletest-cli:latest \
+          test-execution import --framework-type cucumber --project-key AUT \ 
+          --test-execution-key AUT-6062 \
+          /reports/cucumber-report.json
+
+  junit-test-and-upload:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Run test & generate report
+        run: |
+          yarn
+          yarn junit-test
+      - name: Upload report to artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-report
+          path: reports/
+      - name: Upload report to AgileTest.App
+        env:
+          AGILETEST_BASE_URL: ${{ secrets.AGILETEST_BASE_URL }}
+          AGILETEST_CLIENT_TOKEN: ${{ secrets.AGILETEST_CLIENT_TOKEN }}
+        run: |
+          docker run --rm \
+          -e AGILETEST_BASE_URL=$AGILETEST_BASE_URL \
+          -e AGILETEST_CLIENT_TOKEN=$AGILETEST_CLIENT_TOKEN \
+          -v ${{ github.workspace }}/reports:/reports \
+          ghcr.io/agiletestapp/agiletest-cli:latest \
+          test-execution import --framework-type junit --project-key AUT \
+          --test-execution-key AUT-6062 \
+          /reports/junit-report.xml
+
+  robot-test-and-upload:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.12
+      - name: Run test & generate report
+        run: |
+          pip install -r robot/requirements.txt
+          robot -A robot/robot.config
+      - name: Upload report to artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: robot-report
+          path: reports/
+      - name: Upload report to AgileTest.App
+        env:
+          AGILETEST_BASE_URL: ${{ secrets.AGILETEST_BASE_URL }}
+          AGILETEST_CLIENT_TOKEN: ${{ secrets.AGILETEST_CLIENT_TOKEN }}
+        run: |
+          docker run --rm \
+          -e AGILETEST_BASE_URL=$AGILETEST_BASE_URL \
+          -e AGILETEST_CLIENT_TOKEN=$AGILETEST_CLIENT_TOKEN \
+          -v ${{ github.workspace }}/reports:/reports \
+          ghcr.io/agiletestapp/agiletest-cli:latest \
+          test-execution import --framework-type robot --project-key AUT \
+          --test-execution-key AUT-6062 \
+          /reports/robot-report.xml
+
+  nunit-test-and-upload:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Dotnet
+        uses: actions/setup-dotnet@v4
+
+      - name: Run test & generate report
+        run: |
+          cd nunit.test && dotnet restore
+          dotnet test --logger "nunit;LogFilePath=../reports/nunit-report.xml"
+
+      - name: Upload report to artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nunit-report
+          path: reports/
+
+      - name: Upload report to AgileTest.App
+        env:
+          AGILETEST_BASE_URL: ${{ secrets.AGILETEST_BASE_URL }}
+          AGILETEST_CLIENT_TOKEN: ${{ secrets.AGILETEST_CLIENT_TOKEN }}
+        run: |
+          docker run --rm \
+          -e AGILETEST_BASE_URL=$AGILETEST_BASE_URL \
+          -e AGILETEST_CLIENT_TOKEN=$AGILETEST_CLIENT_TOKEN \
+          -v ${{ github.workspace }}/reports:/reports \
+          ghcr.io/agiletestapp/agiletest-cli:latest \
+          test-execution import --framework-type nunit --project-key AUT \
+          --test-execution-key AUT-6062 \
+          /reports/nunit-report.xml
+
+  xunit-test-and-upload:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Dotnet
+        uses: actions/setup-dotnet@v4
+
+      - name: Run test & generate report
+        run: |
+          cd xunit.test && dotnet restore
+          dotnet test --logger "xunit;LogFilePath=../reports/xunit-report.xml"
+
+      - name: Upload report to artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: xunit-report
+          path: reports/
+
+      - name: Upload report to AgileTest.App
+        env:
+          AGILETEST_BASE_URL: ${{ secrets.AGILETEST_BASE_URL }}
+          AGILETEST_CLIENT_TOKEN: ${{ secrets.AGILETEST_CLIENT_TOKEN }}
+        run: |
+          docker run --rm \
+          -e AGILETEST_BASE_URL=$AGILETEST_BASE_URL \
+          -e AGILETEST_CLIENT_TOKEN=$AGILETEST_CLIENT_TOKEN \
+          -v ${{ github.workspace }}/reports:/reports \
+          ghcr.io/agiletestapp/agiletest-cli:latest \
+          test-execution import --framework-type xunit --project-key AUT \
+          --test-execution-key AUT-6062 \
+          /reports/xunit-report.xml
+
+  testng-test-and-upload:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "21"
+
+      - name: Run test & generate report
+        run: |
+          cd testng.test && mvn test
+
+      - name: Upload report to artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: testng-report
+          path: reports/
+
+      - name: Upload report to AgileTest.App
+        env:
+          AGILETEST_BASE_URL: ${{ secrets.AGILETEST_BASE_URL }}
+          AGILETEST_CLIENT_TOKEN: ${{ secrets.AGILETEST_CLIENT_TOKEN }}
+        run: |
+          docker run --rm \
+          -e AGILETEST_BASE_URL=$AGILETEST_BASE_URL \
+          -e AGILETEST_CLIENT_TOKEN=$AGILETEST_CLIENT_TOKEN \
+          -v ${{ github.workspace }}/reports:/reports \
+          ghcr.io/agiletestapp/agiletest-cli:latest \
+          test-execution import --framework-type testng --project-key AUT \
+          --test-execution-key AUT-6062 \
+          /reports/testng-results.xml
